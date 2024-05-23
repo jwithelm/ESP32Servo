@@ -72,8 +72,25 @@ ESP32PWM * Servo::getPwm(){
 
 int Servo::attach(int pin)
 {
-
     return (this->attach(pin, DEFAULT_uS_LOW, DEFAULT_uS_HIGH));
+}
+
+int Servo::attach(int pin, int min, int max, bool is_reversed)
+{
+    int stat = this->attach(pin, min, max);
+    
+    this->is_reversed = is_reversed;
+    
+    if (is_reversed) {
+        map_min = this->max;
+        map_max = this->min;
+    }
+    else {
+        map_min = this->min;
+        map_max = this->max;
+    }
+    
+    return stat;
 }
 
 int Servo::attach(int pin, int min, int max)
@@ -124,6 +141,8 @@ if(
             max = MAX_PULSE_WIDTH;
         this->min = min;     //store this value in uS
         this->max = max;    //store this value in uS
+        this->map_min = min;
+        this->map_max = max;
         // Set up this channel
         // if you want anything other than default timer width, you must call setTimerWidth() before attach
         pwm.attachPin(this->pinNumber,REFRESH_CPS, this->timer_width );   // GPIO pin assigned to channel
@@ -147,12 +166,8 @@ void Servo::write(int value)
     // treat values less than MIN_PULSE_WIDTH (500) as angles in degrees (valid values in microseconds are handled as microseconds)
     if (value < MIN_PULSE_WIDTH)
     {
-        if (value < 0)
-            value = 0;
-        else if (value > 180)
-            value = 180;
-
-        value = map(value, 0, 180, this->min, this->max);
+        value = constrain(value, 0, 180);
+        value = map(value, 0, 180, this->map_min, this->map_max);
     }
     this->writeMicroseconds(value);
 }
@@ -162,27 +177,34 @@ void Servo::writeMicroseconds(int value)
     // calculate and store the values for the given channel
     if (this->attached())   // ensure channel is valid
     {
-        if (value < this->min)          // ensure pulse width is valid
-            value = this->min;
-        else if (value > this->max)
-            value = this->max;
-
-        value = usToTicks(value);  // convert to ticks
+        value = constrain(value, this->min, this->max);
+        
+        // convert to ticks
+        value = usToTicks(value);
         this->ticks = value;
+        
         // do the actual write
-        pwm.write( this->ticks);
+        pwm.write(this->ticks);
     }
 }
 
 void Servo::release()
 {
     if (this->attached())   // ensure channel is valid
-        pwm.write(0);
+        this->ticks = 0;
+        pwm.write(this->ticks);
 }
 
-int Servo::read() // return the value as degrees
+int Servo::read() // return the value as degrees // ToDo: Possible bug? This function returns a different value then the last setpoint value, is this a timing problem (e.g. only occurs if call follows directly a set) or a bug in the code?
 {
-    return (map(readMicroseconds()+1, this->min, this->max, 0, 180));
+    auto us = readMicroseconds();
+    if (us <= 0) {
+        // Channel is detached or released, so return -1 (in both cases no PWM!)
+        return -1;
+    }
+    else {
+        return (map(us+1, this->map_min, this->map_max, 0, 180));
+    }
 }
 
 int Servo::readMicroseconds()
@@ -194,7 +216,7 @@ int Servo::readMicroseconds()
     }
     else
     {
-        pulsewidthUsec = 0;
+        pulsewidthUsec = -1;
     }
 
     return (pulsewidthUsec);

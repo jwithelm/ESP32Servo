@@ -97,7 +97,7 @@
 #define MIN_PULSE_WIDTH       500     // the shortest pulse sent to a servo  
 #define MAX_PULSE_WIDTH      2500     // the longest pulse sent to a servo 
 #define DEFAULT_PULSE_WIDTH  1500     // default pulse width when servo is attached
-#define DEFAULT_PULSE_WIDTH_TICKS 4825
+#define DEFAULT_PULSE_WIDTH_TICKS 0		// Init with no Tick, so no PWM is generated on attach without call of write
 //#define REFRESH_CPS            50
 #define REFRESH_USEC         20000
 
@@ -133,6 +133,7 @@ public:
 	// Arduino Servo Library calls
 	int attach(int pin); // attach the given pin to the next free channel, returns channel number or 0 if failure
 	int attach(int pin, int min, int max); // as above but also sets min and max values for writes.
+	int attach(int pin, int min, int max, bool is_reversed);
 	void detach();
 	void write(int value); // if value is < MIN_PULSE_WIDTH its treated as an angle, otherwise as pulse width in microseconds
 	void writeMicroseconds(int value);     // Write pulse width in microseconds
@@ -157,6 +158,11 @@ private:
 
 	int min = DEFAULT_uS_LOW;           // minimum pulse width for this servo
 	int max = DEFAULT_uS_HIGH;            // maximum pulse width for this servo
+	
+	bool is_reversed {false};
+	int map_min {DEFAULT_uS_LOW};
+	int map_max {DEFAULT_uS_HIGH};
+
 	int pinNumber = 0;                      // GPIO pin assigned to this channel
 	int timer_width = DEFAULT_TIMER_WIDTH; // ESP32 allows variable width PWM timers
 	int ticks = DEFAULT_PULSE_WIDTH_TICKS; // current pulse width on this channel
